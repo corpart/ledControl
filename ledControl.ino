@@ -20,7 +20,7 @@
 EthernetUDP Udp;
 char packetBuffer[UDP_TX_PACKET_MAX_SIZE];
 IPAddress ip;
-unsigned int localPort = 8889; //UDP Listening port
+unsigned int localPort = 3333; //UDP Listening port
 const unsigned int resetPin = 9; //Ethernet Reset Pin
 
 //would like to replace with function getmac...
@@ -38,11 +38,10 @@ int  i;
 int currentModule;
 
 /* LED variables */
-#define NUM_TLC5974 3 // How many boards do you have chained?
-const int TotalLeds = NUM_TLC5974*8;
-const int LedBufferSize = TotalLeds*3*4; //3 for RGB, 4 for 12 bit color
+#define NUM_TLC5974 2
+const int LedCount = 16;
+const int LedBufferSize = LedCount * 6; // uint_16[3] -> 6 bytes per led
 char ledBuffer[LedBufferSize];
-char lastLedBuffer[LedBufferSize];
 #define data   4
 #define clock   5
 #define latch   6
@@ -51,12 +50,12 @@ Adafruit_TLC5947 tlc = Adafruit_TLC5947(NUM_TLC5974, clock, data, latch);
 
 void setup() {
   Serial.begin(9600);
-  
+
   //initialize LED driver
   tlc.begin();
 
   //Begin Network Setup
-  
+
   //Read address from DIP
   currentModule = readDIPAddress();
   ip = IPAddress(192, 168, 0, currentModule + 100); //101-103 are touch sensor. 104-1011 ceiling
@@ -67,46 +66,30 @@ void setup() {
   Udp.begin(localPort);
   Serial.println(ip);
   Serial.println(Ethernet.localIP());
-  
+
 }
 
 void loop() {
-  
+
     int packetSize = Udp.parsePacket();
     Serial.println(packetSize);
-    if (packetSize > 0)  {
-        Udp.read((char*)ledBuffer, packetSize);
-  //      Serial.print(packetSize);
-  //      Serial.print("\t");
-        Serial.println(ledBuffer);
+    if (packetSize == LedBufferSize)  {
+        Udp.read(ledBuffer, LedBufferSize);
+  //       Serial.print(packetSize);
+  //       Serial.print("\t");
+  //       Serial.println(ledBuffer);
 
-        /* packet comes in the form:
-         * rrrrggggbbbbrrrrggggbbbb.. 
-         * For example:
-         * 409500004095409500000000... would send purple to first led, red to second
-         * 
-         */
-  
-        // bytes vs. ascii bitshift
-        //while(Serial.available() < 2); //wait until there are two bytes in the buffer
-        //
-        //
-        //MAP = Serial.read() << 8 ;   //read MSB into MAP
-        //MAP += Serial.read();  
-    
-        for(int i=-1; i< packetSize/12; i++) { //packetSize/12
-          String rr =String(ledBuffer[i*12])+String(ledBuffer[i*12+1])+String(ledBuffer[i*12+2])+String(ledBuffer[i*12+3]);
-          String gg =String(ledBuffer[i*12+4])+String(ledBuffer[i*12+5])+String(ledBuffer[i*12+6])+String(ledBuffer[i*12+7]);
-          String bb =String(ledBuffer[i*12+8])+String(ledBuffer[i*12+9])+String(ledBuffer[i*12+10])+String(ledBuffer[i*12+11]);
+        for(uint16_t i = 0; i < LedCount; i++) {
+          uint16_t j = i * 6; // each color is 6 (bigendian) bytes -> rrggbb
+          uint16_t r = (ledBuffer[j] << 8) + ledBuffer[j + 1];
+          uint16_t g = (ledBuffer[j + 2] << 8) + ledBuffer[j + 3];
+          uint16_t b = (ledBuffer[j + 4] << 8) + ledBuffer[j + 5];
 
-          tlc.setLED(uint16_t(i), uint16_t(rr.toInt()), uint16_t(gg.toInt()), uint16_t(bb.toInt()));
-
+          tlc.setLED(i, r, g, b);
         }
 
         tlc.write();
   }
-
-
 }
 
 
@@ -185,4 +168,3 @@ void resetEthernet() {
   Serial.println("Reset Done");
   delay(1000);
 }
-

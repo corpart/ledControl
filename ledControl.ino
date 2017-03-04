@@ -54,6 +54,12 @@ void setup() {
   //initialize LED driver
   tlc.begin();
 
+  // zero out leds
+  for(uint16_t i = 0; i < LedCount; i++) {
+    tlc.setLED(i, 0, 0, 0);
+  }
+  tlc.write();
+
   //Begin Network Setup
 
   //Read address from DIP
@@ -66,6 +72,7 @@ void setup() {
   Udp.begin(localPort);
   Serial.println(ip);
   Serial.println(Ethernet.localIP());
+
 
 }
 
